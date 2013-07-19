@@ -1,0 +1,10 @@
+{
+  "name": "pxm.js",
+  "description": "REST API for the pxmboard database",
+  "version": "0.0.1",
+  "private": "true",
+  "dependencies": {
+    "express": "3.x",
+    "mysql2": "0.8.x"
+  }
+}
