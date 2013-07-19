@@ -25,20 +25,29 @@ function defaultValue(value, _default) {
   return typeof value !== 'undefined' ? value : _default;
 }
 
+/**
+ * Creates an array consisting of one object for each row, having all the fields
+ * in the field array. The two leading characters of the field names are stripped
+ **/
+function mapAllSelectedFields(rows, fields) {
+  var ret = [];
+  for(var i = 0; i < rows.length; i++) {
+    var obj = {};
+    for(var j = 0; j < fields.length; j++) {
+      obj[fields[j].name.substr(2)] = rows[i][fields[j].name];
+    }
+    ret.push(obj);
+  };
+  return ret;
+}
+
 pxm.get('/', function(req, res) {
   res.send(pxm.routes);
 });
 
 pxm.get('/api/1/boards', function(req, res, next) {
   db.query('SELECT b_id, b_name, b_description FROM pxm_board', function(err, rows, fields) {
-    var body = [];
-    for(var i = 0; i < rows.length; i++) {
-      body.push({
-        id: rows[i].b_id,
-        name: rows[i].b_name,
-        description: rows[i].b_description
-      });
-    }
+    var body = mapAllSelectedFields(rows, fields);
     res.setHeader('Content-Type', 'application/json');
     res.send(body);
   });
@@ -59,15 +68,9 @@ pxm.get('/api/1/board/:boardid/threads', function(req, res, next) {
     'FROM pxm_thread JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0 WHERE t_boardid = ? ORDER BY ' + sort + ' LIMIT ?,?', 
     [req.params.boardid, offset, limit], 
     function(err, rows, fields) {
-      var body = [];
-        for(var i = 0; i < rows.length; i++) {
-          body.push({
-            id: rows[i].t_id,
-            name: rows[i].t_name
-          });
-        }
-        res.setHeader('Content-Type', 'application/json');
-        res.send(body);
+      var body = mapAllSelectedFields(rows, fields);
+      res.setHeader('Content-Type', 'application/json');
+      res.send(body);
     });
 });
 
@@ -75,16 +78,7 @@ pxm.get('/api/1/thread/:threadid/messages', function(req, res, next) {
   db.execute('SELECT m_id, m_subject, m_usernickname, m_tstmp, m_parentid FROM pxm_message WHERE m_threadid = ?',
     [req.params.threadid], 
     function(err, rows, fields) {
-      var body = [];
-      for(var i = 0; i < rows.length; i++) {
-        body.push({
-          id: rows[i].m_id,
-          subject: rows[i].m_subject,
-          user: rows[i].m_usernickname,
-          time: rows[i].m_tstmp,
-          parent: rows[i].m_parentid
-        });
-      }
+      var body = mapAllSelectedFields(rows, fields);
       res.setHeader('Content-Type', 'application/json');
       res.send(body);
     });
