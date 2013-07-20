@@ -68,7 +68,7 @@ pxm.get('/api/1/board/list', function(req, res, next) {
  *  ?limit=\d+
  *  ?offset=\d+
  **/
-pxm.get('/api/1/board/:boardid/threads', function(req, res, next) {
+pxm.get('/api/1/board/:boardid/thread/list', function(req, res, next) {
   var orderBy = {name: 't_name ASC', activity: 't_lastmsgtstmp DESC'};
   var sort = defaultValue(orderBy[req.query.sort], 't_lastmsgtstmp DESC');
   var limit = defaultValue(req.query.limit, 50);
