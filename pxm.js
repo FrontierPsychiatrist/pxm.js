@@ -1,8 +1,20 @@
 var config = require('./config');
+var crypto = require('crypto');
 var express = require('express');
-var pxm = express();
 
-var mysql      = require('mysql2');
+var pxm = express();
+pxm.configure(function() {
+  pxm.use(express.bodyParser());
+  pxm.use(express.cookieParser());
+  pxm.use(express.cookieSession({
+    secret: 'sklfjgj404ojsjgkfpeßw0jgs',
+    cookie: {
+      maxAge: 60*60*24*10
+    }
+  }));
+});
+
+var mysql = require('mysql2');
 var db = mysql.createConnection({ 
   host: config.database.url,
   port: config.database.port, 
@@ -54,7 +66,7 @@ function objectWithAllFields(rows, fields) {
 
 function standardReturn(err, rows, fields, res, mapper) {
   if(err) {
-    res.send(err.message);
+    res.send(500, err.message);
     return;
   }
   var body = mapper(rows, fields);
@@ -114,6 +126,34 @@ pxm.get('/api/1/message/:messageid', function(req, res, next) {
     function(err, rows, fields) {
       standardReturn(err, rows, fields, res, objectWithAllFields);
     });
+});
+
+pxm.post('/api/1/login', function(req, res, next) {
+  var md5 = crypto.createHash('md5');
+  var username = req.body.username;
+  md5.update(req.body.password);
+  var hashedPassword = md5.digest('hex');
+  db.execute('SELECT u_id, u_nickname FROM pxm_user WHERE u_nickname = ? AND u_password = ?',
+    [username, hashedPassword],
+    function(err, rows) {
+      if(err) {
+        res.send(500);
+      } else {
+        if(rows.length !== 1) {
+          res.send(403);
+        } else {
+          req.session.authenticated = true;
+          req.session.userid = rows[0].u_id;
+          req.session.nickname = rows[0].u_nickname;
+          res.send(200);
+        }
+      }
+    });
+});
+
+pxm.post('/api/1/logout', function(req, res, next) {
+  req.session = null;
+  res.send(200);
 });
 
 pxm.listen(8080);
