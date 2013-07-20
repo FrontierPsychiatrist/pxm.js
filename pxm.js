@@ -66,7 +66,7 @@ pxm.get('/api/1', function(req, res) {
   res.send(pxm.routes);
 });
 
-pxm.get('/api/1/boards', function(req, res, next) {
+pxm.get('/api/1/board/list', function(req, res, next) {
   db.query('SELECT b_id, b_name, b_description, b_position, b_active FROM pxm_board', function(err, rows, fields) {
     standardReturn(err, rows, fields, res, arrayWithAllFields);
   });
