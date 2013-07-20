@@ -43,7 +43,7 @@ function arrayWithAllFields(rows, fields) {
 
 function objectWithAllFields(rows, fields) {
   if(rows.length > 1) {
-    new Error('Only useable with maximum 1 object');
+    throw new Error('Only useable with maximum 1 row');
   }
   var obj = {};
   for(var j = 0; j < fields.length; j++) {
@@ -67,7 +67,7 @@ pxm.get('/api/1', function(req, res) {
 });
 
 pxm.get('/api/1/board/list', function(req, res, next) {
-  db.query('SELECT b_id, b_name, b_description, b_position, b_active FROM pxm_board', function(err, rows, fields) {
+  db.query('SELECT b_id, b_name, b_description, b_position, b_active FROM pxm_board ORDER BY b_position ASC', function(err, rows, fields) {
     standardReturn(err, rows, fields, res, arrayWithAllFields);
   });
 });
