@@ -26,7 +26,7 @@ var db = mysql.createConnection({
 db.connect(function(err) {
   if(err) {
     console.log(err);
-    exit(1);
+    process.exit(1);
   }
 });
 
@@ -37,41 +37,19 @@ function defaultValue(value, _default) {
   return typeof value !== 'undefined' ? value : _default;
 }
 
-/**
- * Creates an array consisting of one object for each row, having all the fields
- * in the field array. The two leading characters of the field names are stripped
- **/
-function arrayWithAllFields(rows, fields) {
-  var ret = [];
-  for(var i = 0; i < rows.length; i++) {
-    var obj = {};
-    for(var j = 0; j < fields.length; j++) {
-      obj[fields[j].name.substr(2)] = rows[i][fields[j].name];
-    }
-    ret.push(obj);
-  };
-  return ret;
-}
-
-function objectWithAllFields(rows, fields) {
-  if(rows.length > 1) {
-    throw new Error('Only useable with maximum 1 row');
-  }
-  var obj = {};
-  for(var j = 0; j < fields.length; j++) {
-    obj[fields[j].name.substr(2)] = rows[0][fields[j].name];
-  }
-  return obj;
-}
-
-function standardReturn(err, rows, fields, res, mapper) {
+function standardReturn(err, rows, res, useArray) {
   if(err) {
     res.send(500, err.message);
-    return;
+  } else {
+    var body = undefined;
+    if(useArray) {
+      body = rows;
+    } else if(rows.length === 1) {
+      body = rows[0];
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.send(body);
   }
-  var body = mapper(rows, fields);
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.send(body);
 }
 
 pxm.get('/api/1', function(req, res) {
@@ -80,7 +58,7 @@ pxm.get('/api/1', function(req, res) {
 
 pxm.get('/api/1/board/list', function(req, res, next) {
   db.query('SELECT b_id, b_name, b_description, b_position, b_active FROM pxm_board ORDER BY b_position ASC', function(err, rows, fields) {
-    standardReturn(err, rows, fields, res, arrayWithAllFields);
+    standardReturn(err, rows, res, true);
   });
 });
 
@@ -99,7 +77,7 @@ pxm.get('/api/1/board/:boardid/threads', function(req, res, next) {
     'FROM pxm_thread JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0 WHERE t_boardid = ? ORDER BY ' + sort + ' LIMIT ?,?', 
     [req.params.boardid, offset, limit], 
     function(err, rows, fields) {
-      standardReturn(err, rows, fields, res, arrayWithAllFields);
+      standardReturn(err, rows, res, true);
     });
 });
 
@@ -108,7 +86,7 @@ pxm.get('/api/1/thread/:threadid', function(req, res, next) {
     'FROM pxm_thread JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0 WHERE t_id = ?',
     [req.params.threadid],
     function(err, rows, fields) {
-      standardReturn(err, rows, fields, res, objectWithAllFields);
+      standardReturn(err, rows, res, false);
     });
 });
 
@@ -116,7 +94,7 @@ pxm.get('/api/1/thread/:threadid/messages', function(req, res, next) {
   db.execute('SELECT m_id, m_subject, m_usernickname, m_tstmp, m_parentid FROM pxm_message WHERE m_threadid = ?',
     [req.params.threadid], 
     function(err, rows, fields) {
-      standardReturn(err, rows, fields, res, arrayWithAllFields);
+      standardReturn(err, rows, res, true);
     });
 });
 
@@ -124,17 +102,16 @@ pxm.get('/api/1/message/:messageid', function(req, res, next) {
   db.execute('SELECT m_id, m_threadid, m_usernickname, m_subject, m_body, m_tstmp FROM pxm_message WHERE m_id = ?',
     [req.params.messageid],
     function(err, rows, fields) {
-      standardReturn(err, rows, fields, res, objectWithAllFields);
+      standardReturn(err, rows, res, false);
     });
 });
 
 pxm.post('/api/1/login', function(req, res, next) {
   var md5 = crypto.createHash('md5');
-  var username = req.body.username;
   md5.update(req.body.password);
   var hashedPassword = md5.digest('hex');
   db.execute('SELECT u_id, u_nickname FROM pxm_user WHERE u_nickname = ? AND u_password = ?',
-    [username, hashedPassword],
+    [req.body.username, hashedPassword],
     function(err, rows) {
       if(err) {
         res.send(500);
