@@ -90,7 +90,7 @@ pxm.get('/api/1/thread/:threadid', function(req, res, next) {
     });
 });
 
-pxm.get('/api/1/thread/:threadid/messages', function(req, res, next) {
+pxm.get('/api/1/thread/:threadid/message/list', function(req, res, next) {
   db.execute('SELECT m_id, m_subject, m_usernickname, m_tstmp, m_parentid FROM pxm_message WHERE m_threadid = ?',
     [req.params.threadid], 
     function(err, rows, fields) {
