@@ -32,6 +32,8 @@ db.connect(function(err) {
   }
 });
 
+var noop = function() {};
+
 /**
  * This method returns value if it is not undefined, default otherwise
  **/
@@ -72,7 +74,7 @@ function checkLogin(username, password, success, error) {
   var md5 = crypto.createHash('md5');
   md5.update(password);
   var hashedPassword = md5.digest('hex');
-  db.execute('SELECT u_id, u_nickname FROM pxm_user WHERE u_nickname = ? AND u_password = ?',
+  db.execute('SELECT u_id, u_nickname, u_publicmail, u_highlight FROM pxm_user WHERE u_nickname = ? AND u_password = ?',
     [username, hashedPassword],
     function(err, rows) {
     if(err) {
@@ -144,8 +146,7 @@ pxm.get('/api/1/message/:messageid', function(req, res, next) {
 pxm.post('/api/1/login', function(req, res, next) {
   var success = function(userdata) {
     req.session.authenticated = true;
-    req.session.userid = userdata.u_id;
-    req.session.nickname = userdata.u_nickname;
+    req.session.user = userdata;
     res.send(200);
   };
   var error = function() {
@@ -165,31 +166,38 @@ pxm.post('/api/1/logout', function(req, res, next) {
 
 /**
  * Create a thread
+ * Required parameters:
+ *  subject, body, notification
+ * optional parameters:
+ *  username, password
  **/
 pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
-  var post = function() {
+  var post = function(userdata) {
+    var postTime = (new Date().getTime())/1000;
     //TODO: required params checking
-    db.execute('INSERT INTO pxm_thread (t_boardid, t_active, t_lastmsgtstmp VALUES (?,?,?)',
-    [req.params.boardid, 1, new Date().getTime()],
-    function(err, result) {
+    db.query('INSERT INTO pxm_thread (t_boardid, t_active, t_lastmsgtstmp) VALUES (?,?,?)',
+    [req.params.boardid, 1, postTime],
+    function(err, threadResult) {
       if(err) {
         res.send(500, err.message);
       } else {
-        db.execute('INSERT INTO pxm_message ' +
-          '(m_threadid,m_parentid,m_userid,m_usernickname,m_usermail,m_userhighlight,m_subject,m_body,m_tstmp,m_ip,m_notification)',
+        db.query('INSERT INTO pxm_message ' +
+          '(m_threadid, m_parentid, m_userid, m_usernickname, m_usermail, m_userhighlight, m_subject, m_body, m_tstmp, m_ip, m_notification)' +
           'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-          [result.insertId, req.body.parent_id, 'username?', 'usermail?', 'userhighlight?',
-            req.body.subject, req.body.body, new Date().getTime(), 'ip?', req.body.notification],
-          function(err, mResult) {
+          [threadResult.insertId, 0, userdata.u_id, userdata.u_nickname, userdata.u_publicmail, userdata.u_highlight,
+            req.body.subject, req.body.body, postTime, 'no', req.body.notification],
+          function(err, messageResult) {
             if(err) {
-              //TODO delete from pxm_thread
-              res.send(500);
+              db.query('DELETE FROM pxm_thread WHERE t_id = ?', [threadResult.insertId], noop);
+              res.send(500, err.message);
             } else {
-              db.execute('UPDATE pxm_board SET b_lastmsgtstmp = ? WHERE b_id = ?',
-                ['msgtstmp', req.params.boardid], function(err, response) {
+              db.query('UPDATE pxm_board SET b_lastmsgtstmp = ? WHERE b_id = ?',
+                [postTime, req.params.boardid],
+                function(err, response) {
                   if(err) {
-                    //TODO: delete thread and message
-                    res.send(500);
+                    db.query('DELETE FROM pxm_thread WHERE t_id = ?', [threadResult.insertId], noop);
+                    db.query('DELETE FROM pxm_message WHERE m_id = ?', [messageResult.insertId], noop);
+                    res.send(500, err.message);
                   } else {
                     res.send(200);
                   }
@@ -208,12 +216,14 @@ pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
   //TODO: html escaping
   if(!req.session || !req.session.authenticated) {
     if(req.body.username && req.body.password) {
-      checkLogin(req.body.user, req.body.password, post, error);
+      checkLogin(req.body.username, req.body.password, post, error);
     } else {
       error();
     }
+  } else if(req.session.authenticated) {
+    post(req.session.user);
   } else {
-    post();
+    error();
   }
   //messagecount fuer user erhoehen
 });
