@@ -1,0 +1,14 @@
+{
+    "server": {
+        "port": 8080,
+        "hostname": null
+    },
+
+    "database": {
+        "url": "127.0.0.1",
+        "port": "3306",
+        "username": "pxm",
+        "password": "pxm",
+        "database": "pxm"
+    }
+}

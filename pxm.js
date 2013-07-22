@@ -135,4 +135,4 @@ pxm.post('/api/1/logout', function(req, res, next) {
   res.send(200);
 });
 
-pxm.listen(8080);
+pxm.listen(config.server.port, config.server.hostname);
