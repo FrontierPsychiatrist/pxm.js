@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+"use strict";
 var config = require('./config');
 var crypto = require('crypto');
 var express = require('express');
@@ -15,10 +17,10 @@ pxm.configure(function() {
 });
 
 var mysql = require('mysql2');
-var db = mysql.createConnection({ 
+var db = mysql.createConnection({
   host: config.database.url,
-  port: config.database.port, 
-  user: config.database.username, 
+  port: config.database.port,
+  user: config.database.username,
   password: config.database.password,
   database: config.database.database
 });
@@ -74,8 +76,8 @@ pxm.get('/api/1/board/:boardid/thread/list', function(req, res, next) {
   var limit = defaultValue(req.query.limit, 50);
   var offset = defaultValue(req.query.offset, 0);
   db.execute('SELECT m_subject AS t_name, t_lastmsgtstmp, t_id, t_active, t_fixed, t_msgquantity, t_boardid ' +
-    'FROM pxm_thread JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0 WHERE t_boardid = ? ORDER BY ' + sort + ' LIMIT ?,?', 
-    [req.params.boardid, offset, limit], 
+    'FROM pxm_thread JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0 WHERE t_boardid = ? ORDER BY ' + sort + ' LIMIT ?,?',
+    [req.params.boardid, offset, limit],
     function(err, rows, fields) {
       standardReturn(err, rows, res, true);
     });
@@ -92,7 +94,7 @@ pxm.get('/api/1/thread/:threadid', function(req, res, next) {
 
 pxm.get('/api/1/thread/:threadid/message/list', function(req, res, next) {
   db.execute('SELECT m_id, m_subject, m_usernickname, m_tstmp, m_parentid FROM pxm_message WHERE m_threadid = ?',
-    [req.params.threadid], 
+    [req.params.threadid],
     function(err, rows, fields) {
       standardReturn(err, rows, res, true);
     });
