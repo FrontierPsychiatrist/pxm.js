@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 var config = require('./config');
+var BadWordFilter = require('./BadWordFilter');
 var crypto = require('crypto');
 var express = require('express');
 
@@ -29,8 +30,10 @@ db.connect(function(err) {
   if(err) {
     console.log(err);
     process.exit(1);
-  }
+  }  
 });
+
+var badWordFilter = new BadWordFilter(db);
 
 var noop = function() {};
 
@@ -181,11 +184,13 @@ pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
       if(err) {
         res.send(500, err.message);
       } else {
+        var filteredBody = badWordFilter.replaceBadWords(req.body.body);
+        var filteredSubject = badWordFilter.replaceBadWords(req.body.subject);
         db.query('INSERT INTO pxm_message ' +
           '(m_threadid, m_parentid, m_userid, m_usernickname, m_usermail, m_userhighlight, m_subject, m_body, m_tstmp, m_ip, m_notification)' +
           'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
           [threadResult.insertId, 0, userdata.u_id, userdata.u_nickname, userdata.u_publicmail, userdata.u_highlight,
-            req.body.subject, req.body.body, postTime, 'no', req.body.notification],
+            filteredSubject, filteredBody, postTime, 'no', req.body.notification],
           function(err, messageResult) {
             if(err) {
               db.query('DELETE FROM pxm_thread WHERE t_id = ?', [threadResult.insertId], noop);
@@ -212,7 +217,6 @@ pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
       res.send(401);
   };
   //TODO: post allowed?
-  //TODO: badwords
   //TODO: html escaping
   if(!req.session || !req.session.authenticated) {
     if(req.body.username && req.body.password) {
