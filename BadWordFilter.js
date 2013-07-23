@@ -1,6 +1,6 @@
 function BadWordFilter(db) {
 	var replacements = [];
-	db.query('SELECT bw_name, bw_replacement FROM pxm_badword', function(err, rows) {
+		db.query('SELECT bw_name, bw_replacement FROM pxm_badword', function(err, rows) {
 		replacements = rows;
 	});
 	

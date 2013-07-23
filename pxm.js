@@ -30,7 +30,7 @@ db.connect(function(err) {
   if(err) {
     console.log(err);
     process.exit(1);
-  }  
+  }
 });
 
 var badWordFilter = new BadWordFilter(db);
@@ -217,7 +217,8 @@ pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
       res.send(401);
   };
   //TODO: post allowed?
-  //TODO: html escaping
+  //TODO: html replacement for [b] etc
+  //TODO: read board configuration
   if(!req.session || !req.session.authenticated) {
     if(req.body.username && req.body.password) {
       checkLogin(req.body.username, req.body.password, post, error);
