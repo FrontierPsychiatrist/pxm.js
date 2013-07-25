@@ -74,6 +74,7 @@ function standardReturn(err, rows, res, useArray) {
       body = rows[0];
     }
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
     res.send(body);
   }
 }
@@ -115,9 +116,17 @@ pxm.get('/api/1', function(req, res) {
 });
 
 pxm.get('/api/1/board/list', function(req, res, next) {
-  db.query('SELECT b_id, b_name, b_description, b_position, b_active FROM pxm_board ORDER BY b_position ASC', function(err, rows, fields) {
-    standardReturn(err, rows, res, true);
-  });
+    connectionPool.getConnection( function (error, connection){
+
+        if(error) throw error;
+        var stmnt = 'SELECT b_id, b_name, b_description, b_position, b_active\n' +
+                    '  FROM pxm_board\n' +
+                    ' ORDER BY b_position ASC';
+
+        connection.query(stmnt, function(err, rows, fields) {
+            standardReturn(err, rows, res, true);
+        });
+    });
 });
 
 /**
@@ -127,15 +136,27 @@ pxm.get('/api/1/board/list', function(req, res, next) {
  *  ?offset=\d+
  **/
 pxm.get('/api/1/board/:boardid/thread/list', function(req, res, next) {
-  var orderBy = {name: 't_name ASC', activity: 't_lastmsgtstmp DESC'};
-  var sort = defaultValue(orderBy[req.query.sort], 't_lastmsgtstmp DESC');
-  var limit = defaultValue(req.query.limit, 50);
-  var offset = defaultValue(req.query.offset, 0);
-  db.execute('SELECT m_subject AS t_name, t_lastmsgtstmp, t_id, t_active, t_fixed, t_msgquantity, t_boardid ' +
-    'FROM pxm_thread JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0 WHERE t_boardid = ? ORDER BY ' + sort + ' LIMIT ?,?',
-    [req.params.boardid, offset, limit],
-    function(err, rows, fields) {
-      standardReturn(err, rows, res, true);
+
+    var orderBy = {name: 't_name ASC', activity: 't_lastmsgtstmp DESC'};
+    var sort = defaultValue(orderBy[req.query.sort], 't_lastmsgtstmp DESC');
+    var limit = defaultValue(req.query.limit, 50);
+    var offset = defaultValue(req.query.offset, 0);
+
+    connectionPool.getConnection( function(error, connection) {
+
+        if(error) throw error;
+
+        var stmnt = 'SELECT m_subject AS t_name, t_lastmsgtstmp, t_id, t_active,\n' +
+                    '       t_fixed, t_msgquantity, t_boardid\n' +
+                    '  FROM pxm_thread\n' +
+                            ' JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0\n' +
+                            'WHERE t_boardid = ?\n' +
+                            'ORDER BY ' + connection.escape(sort) + ' LIMIT ?,?';
+
+        connection.execute(stmnt, [req.params.boardid, offset, limit],
+            function(err, rows, fields) {
+                standardReturn(err, rows, res, true);
+        });
     });
 });
 
