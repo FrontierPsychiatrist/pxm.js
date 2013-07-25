@@ -149,9 +149,9 @@ pxm.get('/api/1/board/:boardid/thread/list', function(req, res, next) {
         var stmnt = 'SELECT m_subject AS t_name, t_lastmsgtstmp, t_id, t_active,\n' +
                     '       t_fixed, t_msgquantity, t_boardid\n' +
                     '  FROM pxm_thread\n' +
-                            ' JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0\n' +
-                            'WHERE t_boardid = ?\n' +
-                            'ORDER BY ' + connection.escape(sort) + ' LIMIT ?,?';
+                    '  JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0\n' +
+                    ' WHERE t_boardid = ?\n' +
+                    ' ORDER BY ' + connection.escape(sort) + ' LIMIT ?,?';
 
         connection.execute(stmnt, [req.params.boardid, offset, limit],
             function(err, rows, fields) {
@@ -160,12 +160,22 @@ pxm.get('/api/1/board/:boardid/thread/list', function(req, res, next) {
     });
 });
 
+/**
+* Get thread by ID
+**/
 pxm.get('/api/1/thread/:threadid', function(req, res, next) {
-  db.execute('SELECT t_id, m_subject AS t_name, t_lastmsgtstmp, t_active, t_fixed, t_msgquantity, t_boardid ' +
-    'FROM pxm_thread JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0 WHERE t_id = ?',
-    [req.params.threadid],
-    function(err, rows, fields) {
-      standardReturn(err, rows, res, false);
+
+    connectionPool.getConnection( function(error, connection) {
+
+        var stmnt = 'SELECT t_id, m_subject AS t_name, t_lastmsgtstmp,\n' +
+                    '       t_active, t_fixed, t_msgquantity, t_boardid\n' +
+                    '  FROM pxm_thread\n' +
+                    '  JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0\n' +
+                    ' WHERE t_id = ?';
+
+        db.execute(stmnt, [req.params.threadid], function(err, rows, fields) {
+            standardReturn(err, rows, res, false);
+        });
     });
 });
 
