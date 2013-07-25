@@ -81,7 +81,7 @@ module.exports.authenticateUser = function (username, password, ip, callback) {
 * @param {number} userId
 */
 module.exports.logoutUser = function (userId) {
-    delete logoutUser[ userId ];
+    delete loggedInUsers[ userId ];
 }
 
 /**
