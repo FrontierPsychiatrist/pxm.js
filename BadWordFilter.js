@@ -1,9 +1,10 @@
-function BadWordFilter(db) {
+function BadWordFilter(connection) {
 	var replacements = [];
-		db.query('SELECT bw_name, bw_replacement FROM pxm_badword', function(err, rows) {
-		replacements = rows;
+		connection.query('SELECT bw_name, bw_replacement FROM pxm_badword', function(err, rows) {
+			replacements = rows;
+			connection.end();
 	});
-	
+
 	this.replaceBadWords = function(text) {
 		var out = text;
 		for(var i = 0; i < replacements.length; i++) {

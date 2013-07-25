@@ -17,7 +17,7 @@ pxm.configure(function() {
   }));
 });
 
-var mysql = require('mysql2');
+var mysql = require('mysql');
 var connectionPool = mysql.createPool({
 
     host:       config.database.url,
@@ -28,23 +28,12 @@ var connectionPool = mysql.createPool({
     multipleStatements: true
 });
 
-// TODO: remove, use connection pool for all
-var db = mysql.createConnection({
-  host: config.database.url,
-  port: config.database.port,
-  user: config.database.username,
-  password: config.database.password,
-  database: config.database.database
-});
+var badWordFilter = null;
+connectionPool.getConnection(function(error, connection){
 
-db.connect(function(err) {
-  if(err) {
-    console.log(err);
-    process.exit(1);
-  }
+    if(error) throw error;
+    badWordFilter = new BadWordFilter(connection);
 });
-
-var badWordFilter = new BadWordFilter(db);
 
 var noop = function() {};
 
@@ -262,49 +251,54 @@ pxm.post('/api/1/logout', function(req, res, next) {
  * optional parameters:
  *  username, password
  **/
-
-pxm.post('/api/0/board/:boardid/thread', function(req, res, next) {
+pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
 
     connectionPool.getConnection( function(error, connection) {
 
         if(error) throw error;
         var boardId = connection.escape(req.params.boardid);
-        var timestamp = connection.escape(new Date());
-        // TODO get user data
-        var userId = 1;
-        var username = 'Developer'
-        var usermail = 'mail@example.com';
+        var timestamp = connection.escape(new Date().getTime() / 1000);
+        // TODO: get user data & authentication
+        var userId =  connection.escape(1);
+        var username =  connection.escape('Developer');
+        var usermail =  connection.escape('mail@example.com');
         var userhighlight = 1;
-        var filteredBody = badWordFilter.replaceBadWords(req.body.body);
-        var filteredSubject = badWordFilter.replaceBadWords(req.body.subject);
-        var userIP = '127.0.0.1';
+        var filteredBody =  connection.escape( badWordFilter.replaceBadWords(req.body.body) );
+        var filteredSubject = connection.escape( badWordFilter.replaceBadWords(req.body.subject) );
+        var userIP =  connection.escape('127.0.0.1');
         var notification = connection.escape( req.body.notification );
 
-        var insertStmnt = 'INSERT INTO pxm_thread (t_boardid, t_active, t_lastmsgtstmp)\n' +
-                          'VALUES (?,1,?);\n' +
-                          'INSERT INTO pxm_message (m_threadid, m_parentid, m_userid, m_usernickname,\n' +
-                          '                         m_usermail, m_userhighlight, m_subject, m_body,\n' +
+        var insertStmnt = 'BEGIN;\n' +
+                          'INSERT INTO pxm_thread (t_boardid, t_active, t_lastmsgtstmp)\n' +
+                          'VALUES (' + boardId + ',1,' + timestamp + ');\n' +
+                          'UPDATE pxm_board SET b_lastmsgtstmp = ' + timestamp +
+                          ' WHERE b_id = ' + boardId + ';\n' +
+                          'INSERT INTO pxm_message (m_threadid, m_parentid, m_userid, m_usernickname, \n' +
+                          '                         m_usermail, m_userhighlight, m_subject, m_body, \n' +
                           '                         m_tstmp, m_ip, m_notification)\n' +
-                          'VALUES (LAST_INSERT_ID(),0,?,?,?,?,?,?,?,?,?);'
+                          'VALUES (LAST_INSERT_ID(),0,' + userId + ',' + username + ',' +
+                                    usermail + ',' + userhighlight + ',' + filteredSubject + ',' + filteredBody + ',' +
+                                    timestamp + ',' + userIP + ','  + notification + ');\n' +
+                          'COMMIT;';
 
-        connection.query(insertStmnt, [boardid, timestamp, userId, username,
-            usermail, userhighlight, filteredSubject, filteredBody,
-            timestamp, userId, notification], function (error, result) {
+        connection.query(insertStmnt, function (error, result) {
 
-                if(error) {
-
-                    connection.end();
-                    throw error;
-                }
+            connection.end();
+            if(error) {
+                res.send(500, {message: '500 Internal Server Error'});
+                throw error;
+            }
+            res.send(200, {message:'200 OK'});
         });
     });
 });
 
+// OLD VERSION
 pxm.post('/api/0/board/:boardid/thread', function(req, res, next) {
   var post = function(userdata) {
     var postTime = (new Date().getTime())/1000;
     //TODO: required params checking
-    db.query(,
+    db.query('',
     [req.params.boardid, 1, postTime],
     function(err, threadResult) {
       if(err) {
