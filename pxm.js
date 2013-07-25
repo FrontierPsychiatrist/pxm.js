@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 "use strict";
-var config = require('./config');
+var config = require('./config.json');
 var BadWordFilter = require('./BadWordFilter');
 var crypto = require('crypto');
 var express = require('express');
+var auth = require('./authentication.js');
 
 var pxm = express();
 pxm.configure(function() {
@@ -34,8 +35,6 @@ connectionPool.getConnection(function(error, connection){
     if(error) throw error;
     badWordFilter = new BadWordFilter(connection);
 });
-
-var noop = function() {};
 
 /**
  * This method returns value if it is not undefined, default otherwise
@@ -70,38 +69,6 @@ function standardReturn(err, rows, res, useArray) {
         res.setHeader('Cache-Control', 'no-cache');
         res.send(body);
     }
-}
-
-/**
- * Check if the given username and password are valid and then call either a success or error callback
- * @param success A callback to be called when the login is possible with the given data. It will be called with the
- *  selected userdata.
- * @param error A callback to be called when the login was errornous.
- **/
-function checkLogin(username, password, callback) {
-
-    var md5 = crypto.createHash('md5');
-    md5.update(password);
-    var hashedPassword = md5.digest('hex');
-
-    var stmnt = 'SELECT u_id, u_nickname, u_publicmail, u_highlight\n' +
-                '  FROM pxm_user\n' +
-                ' WHERE u_nickname = ? AND u_password = ?\n';
-    connectionPool.getConnection( function (error, connection) {
-
-        if(error) throw error;
-        connection.query(stmnt, [username, hashedPassword], function(err, rows) {
-
-            if(err) throw err;
-            if(rows.length !== 1) {
-
-                callback(new Error('Unknown user'), null);
-            } else {
-
-                callback(null, rows[0]);
-            }
-        });
-    });
 }
 
 pxm.get('/api/1', function(req, res) {
@@ -219,27 +186,25 @@ pxm.get('/api/1/message/:messageid', function(req, res, next) {
 */
 pxm.post('/api/1/login', function(req, res, next) {
 
-    if(req.body.username && req.body.password) {
+    var ip = req.connection.remoteAddress;
+    var username = req.body.username || '';
+    var password = req.body.password || '';
 
-        checkLogin(req.body.username, req.body.password, function(err, userdata) {
+    auth.authenticateUser(username, password, ip, function(err, user) {
 
         if(err) {
             res.send(401);
             return;
         }
 
-        req.session.authenticated = true;
-        req.session.user = userdata;
-        res.send(200);
+        req.session.userId = user.u_id;
+        req.session.accessToken = user.accessToken;
+        res.send(200, {userId: user.u_id, accessToken: user.accessToken});
     });
-
-    } else {
-
-        res.send(400, 'Please provide the username and password parameter');
-    }
 });
 
 pxm.post('/api/1/logout', function(req, res, next) {
+  auth.logoutUser( req.session.userId )
   req.session = null;
   res.send(200);
 });
@@ -291,66 +256,6 @@ pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
             res.send(200, {message:'200 OK'});
         });
     });
-});
-
-// OLD VERSION
-pxm.post('/api/0/board/:boardid/thread', function(req, res, next) {
-  var post = function(userdata) {
-    var postTime = (new Date().getTime())/1000;
-    //TODO: required params checking
-    db.query('',
-    [req.params.boardid, 1, postTime],
-    function(err, threadResult) {
-      if(err) {
-        res.send(500, err.message);
-      } else {
-        var filteredBody = badWordFilter.replaceBadWords(req.body.body);
-        var filteredSubject = badWordFilter.replaceBadWords(req.body.subject);
-        db.query('INSERT INTO pxm_message ' +
-          '(m_threadid, m_parentid, m_userid, m_usernickname, m_usermail, m_userhighlight, m_subject, m_body, m_tstmp, m_ip, m_notification)' +
-          'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-          [threadResult.insertId, 0, userdata.u_id, userdata.u_nickname, userdata.u_publicmail, userdata.u_highlight,
-            filteredSubject, filteredBody, postTime, 'no', req.body.notification],
-          function(err, messageResult) {
-            if(err) {
-              db.query('DELETE FROM pxm_thread WHERE t_id = ?', [threadResult.insertId], noop);
-              res.send(500, err.message);
-            } else {
-              db.query('UPDATE pxm_board SET b_lastmsgtstmp = ? WHERE b_id = ?',
-                [postTime, req.params.boardid],
-                function(err, response) {
-                  if(err) {
-                    db.query('DELETE FROM pxm_thread WHERE t_id = ?', [threadResult.insertId], noop);
-                    db.query('DELETE FROM pxm_message WHERE m_id = ?', [messageResult.insertId], noop);
-                    res.send(500, err.message);
-                  } else {
-                    res.send(200);
-                  }
-                });
-            } //if error insert pxm_message
-          }); //insert into pxm_message
-      } //if error inser pxm_thread
-    }); //insert into pxm_thread
-  };
-
-  var error = function() {
-      res.send(401);
-  };
-  //TODO: post allowed?
-  //TODO: html replacement for [b] etc
-  //TODO: read board configuration
-  if(!req.session || !req.session.authenticated) {
-    if(req.body.username && req.body.password) {
-      checkLogin(req.body.username, req.body.password, post, error);
-    } else {
-      error();
-    }
-  } else if(req.session.authenticated) {
-    post(req.session.user);
-  } else {
-    error();
-  }
-  //messagecount fuer user erhoehen
 });
 
 /**
