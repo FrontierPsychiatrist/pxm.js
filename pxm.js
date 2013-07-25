@@ -64,19 +64,23 @@ function defaultValue(value, _default) {
  *  use useArray = true if you are sure there is only one row, otherwise nothing will be sent!
  **/
 function standardReturn(err, rows, res, useArray) {
-  if(err) {
-    res.send(500, err.message);
-  } else {
-    var body = undefined;
-    if(useArray) {
-      body = rows;
-    } else if(rows.length === 1) {
-      body = rows[0];
+
+    if(err) {
+        res.send(500, {message:'Internal Server Error'});
+        throw err;
+    } else {
+
+        var body = [];
+        if(useArray) {
+            body = rows;
+        } else if(rows.length === 1) {
+            body = rows[0];
+        }
+
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.send(body);
     }
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.send(body);
-  }
 }
 
 /**
@@ -202,14 +206,28 @@ pxm.get('/api/1/thread/:threadid/message/list', function(req, res, next) {
     });
 });
 
+/**
+* Get message by ID
+*/
 pxm.get('/api/1/message/:messageid', function(req, res, next) {
-  db.execute('SELECT m_id, m_threadid, m_usernickname, m_subject, m_body, m_tstmp FROM pxm_message WHERE m_id = ?',
-    [req.params.messageid],
-    function(err, rows, fields) {
-      standardReturn(err, rows, res, false);
+
+    connectionPool.getConnection( function(error, connection) {
+
+        if(error) throw error;
+        var stmnt = 'SELECT m_id, m_threadid, m_usernickname, m_subject, m_body, m_tstmp\n' +
+                    '  FROM pxm_message\n' +
+                    ' WHERE m_id = ?';
+
+        connection.query(stmnt, [req.params.messageid], function(err, rows, fields) {
+            connection.end();
+            standardReturn(err, rows, res, false);
+        });
     });
 });
 
+/**
+* Log in with username and password.
+*/
 pxm.post('/api/1/login', function(req, res, next) {
 
     if(req.body.username && req.body.password) {
