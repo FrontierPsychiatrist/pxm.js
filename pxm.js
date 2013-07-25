@@ -18,6 +18,17 @@ pxm.configure(function() {
 });
 
 var mysql = require('mysql2');
+var connectionPool = mysql.createPool({
+
+    host:       config.database.url,
+    port:       config.database.port,
+    user:       config.database.username,
+    password:   config.database.password,
+    database:   config.database.database,
+    multipleStatements: true
+});
+
+// TODO: remove, use connection pool for all
 var db = mysql.createConnection({
   host: config.database.url,
   port: config.database.port,
@@ -50,7 +61,7 @@ function defaultValue(value, _default) {
  * @param rows The rows to return in the response
  * @param res The http response object
  * @param useArray if true, all rows will be sent. Otherwise only the first row will be sent. Be careful, only
- *  use useArray = true if you are sure there is only one row, otherwise nothing will be sent! 
+ *  use useArray = true if you are sure there is only one row, otherwise nothing will be sent!
  **/
 function standardReturn(err, rows, res, useArray) {
   if(err) {
@@ -73,23 +84,30 @@ function standardReturn(err, rows, res, useArray) {
  *  selected userdata.
  * @param error A callback to be called when the login was errornous.
  **/
-function checkLogin(username, password, success, error) {
-  var md5 = crypto.createHash('md5');
-  md5.update(password);
-  var hashedPassword = md5.digest('hex');
-  db.execute('SELECT u_id, u_nickname, u_publicmail, u_highlight FROM pxm_user WHERE u_nickname = ? AND u_password = ?',
-    [username, hashedPassword],
-    function(err, rows) {
-    if(err) {
-      throw err;
-    } else {
-      if(rows.length !== 1) {
-        error();
-      } else {
-        success(rows[0]);
-      }
-    }
-  });
+function checkLogin(username, password, callback) {
+
+    var md5 = crypto.createHash('md5');
+    md5.update(password);
+    var hashedPassword = md5.digest('hex');
+
+    var stmnt = 'SELECT u_id, u_nickname, u_publicmail, u_highlight\n' +
+                '  FROM pxm_user\n' +
+                ' WHERE u_nickname = ? AND u_password = ?\n';
+    connectionPool.getConnection( function (error, connection) {
+
+        if(error) throw error;
+        connection.query(stmnt, [username, hashedPassword], function(err, rows) {
+
+            if(err) throw err;
+            if(rows.length !== 1) {
+
+                callback(new Error('Unknown user'), null);
+            } else {
+
+                callback(null, rows[0]);
+            }
+        });
+    });
 }
 
 pxm.get('/api/1', function(req, res) {
@@ -147,19 +165,25 @@ pxm.get('/api/1/message/:messageid', function(req, res, next) {
 });
 
 pxm.post('/api/1/login', function(req, res, next) {
-  var success = function(userdata) {
-    req.session.authenticated = true;
-    req.session.user = userdata;
-    res.send(200);
-  };
-  var error = function() {
-    res.send(401);
-  };
-  if(req.body.username && req.body.password) {
-    checkLogin(req.body.username, req.body.password, success, error);
-  } else {
-    res.send(400, 'Please provide the username and password parameter');
-  }
+
+    if(req.body.username && req.body.password) {
+
+        checkLogin(req.body.username, req.body.password, function(err, userdata) {
+
+        if(err) {
+            res.send(401);
+            return;
+        }
+
+        req.session.authenticated = true;
+        req.session.user = userdata;
+        res.send(200);
+    });
+
+    } else {
+
+        res.send(400, 'Please provide the username and password parameter');
+    }
 });
 
 pxm.post('/api/1/logout', function(req, res, next) {
@@ -167,9 +191,6 @@ pxm.post('/api/1/logout', function(req, res, next) {
   res.send(200);
 });
 
-<<<<<<< HEAD
-pxm.listen(config.server.port, config.server.hostname);
-=======
 /**
  * Create a thread
  * Required parameters:
@@ -215,7 +236,7 @@ pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
       } //if error inser pxm_thread
     }); //insert into pxm_thread
   };
-  
+
   var error = function() {
       res.send(401);
   };
@@ -256,5 +277,4 @@ pxm.post('/api/1/thread/:threadid/message', function(req, res, next) {
   //reply notification
 });
 
-pxm.listen(8080);
->>>>>>> 2d51867d7dfa3b65548647d84c206c9bacb7e552
+pxm.listen(config.server.port, config.server.hostname);
