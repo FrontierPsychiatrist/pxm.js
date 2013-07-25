@@ -262,11 +262,49 @@ pxm.post('/api/1/logout', function(req, res, next) {
  * optional parameters:
  *  username, password
  **/
-pxm.post('/api/1/board/:boardid/thread', function(req, res, next) {
+
+pxm.post('/api/0/board/:boardid/thread', function(req, res, next) {
+
+    connectionPool.getConnection( function(error, connection) {
+
+        if(error) throw error;
+        var boardId = connection.escape(req.params.boardid);
+        var timestamp = connection.escape(new Date());
+        // TODO get user data
+        var userId = 1;
+        var username = 'Developer'
+        var usermail = 'mail@example.com';
+        var userhighlight = 1;
+        var filteredBody = badWordFilter.replaceBadWords(req.body.body);
+        var filteredSubject = badWordFilter.replaceBadWords(req.body.subject);
+        var userIP = '127.0.0.1';
+        var notification = connection.escape( req.body.notification );
+
+        var insertStmnt = 'INSERT INTO pxm_thread (t_boardid, t_active, t_lastmsgtstmp)\n' +
+                          'VALUES (?,1,?);\n' +
+                          'INSERT INTO pxm_message (m_threadid, m_parentid, m_userid, m_usernickname,\n' +
+                          '                         m_usermail, m_userhighlight, m_subject, m_body,\n' +
+                          '                         m_tstmp, m_ip, m_notification)\n' +
+                          'VALUES (LAST_INSERT_ID(),0,?,?,?,?,?,?,?,?,?);'
+
+        connection.query(insertStmnt, [boardid, timestamp, userId, username,
+            usermail, userhighlight, filteredSubject, filteredBody,
+            timestamp, userId, notification], function (error, result) {
+
+                if(error) {
+
+                    connection.end();
+                    throw error;
+                }
+        });
+    });
+});
+
+pxm.post('/api/0/board/:boardid/thread', function(req, res, next) {
   var post = function(userdata) {
     var postTime = (new Date().getTime())/1000;
     //TODO: required params checking
-    db.query('INSERT INTO pxm_thread (t_boardid, t_active, t_lastmsgtstmp) VALUES (?,?,?)',
+    db.query(,
     [req.params.boardid, 1, postTime],
     function(err, threadResult) {
       if(err) {
