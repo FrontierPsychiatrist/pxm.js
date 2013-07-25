@@ -124,6 +124,7 @@ pxm.get('/api/1/board/list', function(req, res, next) {
                     ' ORDER BY b_position ASC';
 
         connection.query(stmnt, function(err, rows, fields) {
+            connection.end();
             standardReturn(err, rows, res, true);
         });
     });
@@ -155,6 +156,7 @@ pxm.get('/api/1/board/:boardid/thread/list', function(req, res, next) {
 
         connection.execute(stmnt, [req.params.boardid, offset, limit],
             function(err, rows, fields) {
+                connection.end();
                 standardReturn(err, rows, res, true);
         });
     });
@@ -167,23 +169,36 @@ pxm.get('/api/1/thread/:threadid', function(req, res, next) {
 
     connectionPool.getConnection( function(error, connection) {
 
+        if(error) throw error;
         var stmnt = 'SELECT t_id, m_subject AS t_name, t_lastmsgtstmp,\n' +
                     '       t_active, t_fixed, t_msgquantity, t_boardid\n' +
                     '  FROM pxm_thread\n' +
                     '  JOIN pxm_message ON t_id = m_threadid AND m_parentid = 0\n' +
                     ' WHERE t_id = ?';
 
-        db.execute(stmnt, [req.params.threadid], function(err, rows, fields) {
+        connection.query(stmnt, [req.params.threadid], function(err, rows, fields) {
+            connection.end();
             standardReturn(err, rows, res, false);
         });
     });
 });
 
+/**
+* Get messages of given thread
+*/
 pxm.get('/api/1/thread/:threadid/message/list', function(req, res, next) {
-  db.execute('SELECT m_id, m_subject, m_usernickname, m_tstmp, m_parentid FROM pxm_message WHERE m_threadid = ?',
-    [req.params.threadid],
-    function(err, rows, fields) {
-      standardReturn(err, rows, res, true);
+
+    connectionPool.getConnection( function(error, connection) {
+
+        if(error) throw error;
+        var stmnt = 'SELECT m_id, m_subject, m_usernickname, m_tstmp, m_parentid\n' +
+                    '  FROM pxm_message\n' +
+                    ' WHERE m_threadid = ?';
+
+        connection.query(stmnt, [req.params.threadid], function(err, rows, fields) {
+            connection.end();
+            standardReturn(err, rows, res, true);
+        });
     });
 });
 
